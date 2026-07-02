@@ -63,7 +63,7 @@
         </button>
       </div>
       <nav class="sidebar-nav">
-        <a class="nav-item active" onclick="showPage('dashboard')" data-page="dashboard">
+        <a class="nav-item active" onclick="showPage('dashboard')" data-page="dashboard" data-admin-only="1">
           <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
           <span>Dashboard</span>
         </a>
@@ -78,6 +78,10 @@
         <a class="nav-item" onclick="showPage('shiftReport')" data-page="shiftReport">
           <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
           <span>Shift Report</span>
+        </a>
+        <a class="nav-item" onclick="showPage('management')" data-page="management" data-admin-only="1">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          <span>Management</span>
         </a>
       </nav>
       <div class="sidebar-footer">
@@ -351,7 +355,7 @@
                     Female
                   </button>
                 </div>
-                <input type="hidden" id="sex" required />
+                <input type="hidden" id="sex" />
               </div>
 
               <div class="nxt-field">
@@ -440,7 +444,7 @@
                     <input class="nxt-input" type="text" id="woundCauseText" placeholder="Search cause…" autocomplete="off"
                       onfocus="openDropdown('woundCauseSearch')"
                       oninput="filterDropdown('woundCauseSearch','woundCause')"
-                      onblur="closeDropdownDelay('woundCauseSearch')" required />
+                      onblur="closeDropdownDelay('woundCauseSearch')" />
                     <svg class="nxt-input-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
                   </div>
                   <div class="nxt-dropdown hidden" id="woundCauseSearch-drop">
@@ -458,7 +462,7 @@
                     <div class="nxt-drop-item" data-value="Other" onclick="pickDropdown('woundCauseSearch','woundCause','Other','Other')">📌 Other</div>
                   </div>
                 </div>
-                <input type="hidden" id="woundCause" required />
+                <input type="hidden" id="woundCause" />
               </div>
 
               <!-- Wound Status: pill toggle -->
@@ -482,7 +486,7 @@
                     Under Review
                   </button>
                 </div>
-                <input type="hidden" id="woundStatus" required />
+                <input type="hidden" id="woundStatus" />
               </div>
 
               <div class="nxt-field">
@@ -507,7 +511,7 @@
                     No
                   </button>
                 </div>
-                <input type="hidden" id="gpConsultation" required />
+                <input type="hidden" id="gpConsultation" />
               </div>
 
               <div class="nxt-field nxt-field-full">
@@ -531,18 +535,28 @@
                 <div class="nxt-section-sub">Captured at the moment of registration</div>
               </div>
             </div>
+            <label class="backdate-toggle admin-only">
+              <input type="checkbox" id="backdateEnable" onchange="toggleBackdate(this.checked)" />
+              <span>Enable manual date / time / shift (Admin)</span>
+            </label>
             <div class="nxt-auto-grid">
               <div class="nxt-auto-field">
                 <div class="nxt-auto-label">Date</div>
                 <input class="nxt-auto-input" type="text" id="autoDate" readonly />
+                <input class="nxt-input hidden" type="date" id="backdateDate" />
               </div>
               <div class="nxt-auto-field">
                 <div class="nxt-auto-label">Time</div>
                 <input class="nxt-auto-input" type="text" id="autoTime" readonly />
+                <input class="nxt-input hidden" type="time" id="backdateTime" />
               </div>
               <div class="nxt-auto-field">
                 <div class="nxt-auto-label">Shift</div>
                 <input class="nxt-auto-input" type="text" id="autoShift" readonly />
+                <select class="nxt-input hidden" id="backdateShift">
+                  <option value="Day">Day</option>
+                  <option value="Night">Night</option>
+                </select>
               </div>
             </div>
           </div>
@@ -798,6 +812,47 @@
             <div class="signature-block"><div class="sig-line"></div><p>Nurse Signature</p></div>
             <div class="signature-block"><div class="sig-line"></div><p>Ward In-Charge</p></div>
           </div>
+        </div>
+      </section>
+
+      <!-- MANAGEMENT (Admin only) -->
+      <section id="page-management" class="page">
+        <div class="page-header">
+          <h2>Management</h2>
+          <p class="page-desc">Add custom insurance types and wound causes. They'll appear alongside the defaults in every dropdown and filter.</p>
+        </div>
+
+        <!-- Insurance Types -->
+        <div class="section-card">
+          <h3 class="report-section-title">Insurance Types</h3>
+          <div class="ins-add-row">
+            <input class="nxt-input" type="text" id="newInsuranceName" placeholder="e.g. Prime Life Assurance" />
+            <button class="btn btn-primary" onclick="addInsuranceType()">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Add Insurance Type
+            </button>
+          </div>
+          <div id="insuranceCustomList"></div>
+        </div>
+
+        <!-- Wound Causes -->
+        <div class="section-card">
+          <h3 class="report-section-title">Wound Causes</h3>
+          <p class="page-desc">Pick an icon and give the cause a name, just like Burn 🔥 or Fall 🤕.</p>
+
+          <div class="emoji-picker-label">
+            Selected icon: <span class="emoji-preview" id="emojiPreview">🏷️</span>
+          </div>
+          <div class="emoji-picker-grid" id="emojiPickerGrid"></div>
+
+          <div class="ins-add-row">
+            <input class="nxt-input" type="text" id="newCauseName" placeholder="e.g. Chemical Exposure" />
+            <button class="btn btn-primary" onclick="addWoundCause()">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Add Wound Cause
+            </button>
+          </div>
+          <div id="causeCustomList"></div>
         </div>
       </section>
 

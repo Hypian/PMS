@@ -3,7 +3,14 @@
 // ─── Constants ────────────────────────────
 const STORAGE_KEY = 'msw_patients';
 const SESSION_KEY = 'msw_session';
-const CREDENTIALS = { username: 'admin', password: 'admin123' };
+const INSURANCE_KEY = 'msw_custom_insurance';
+const CAUSE_KEY = 'msw_custom_causes';
+
+// Two-tier auth: 'admin' = full access, 'normal' = registration/records/shift report only
+const USERS = [
+  { username: 'admin', password: 'admin123', role: 'admin',  name: 'Admin User'  },
+  { username: 'nurse', password: 'nurse123', role: 'normal', name: 'Ward Nurse'  },
+];
 
 const MONTHS = ['','January','February','March','April','May','June',
                 'July','August','September','October','November','December'];
@@ -65,14 +72,23 @@ function updateClock() {
 setInterval(updateClock, 1000);
 
 // ─── Session ──────────────────────────────
-function isLoggedIn() { return localStorage.getItem(SESSION_KEY) === 'true'; }
+function isLoggedIn() {
+  try { return !!JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); }
+  catch { return false; }
+}
+function currentUser() {
+  try { return JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); }
+  catch { return null; }
+}
+function isAdmin() { return currentUser()?.role === 'admin'; }
 
 function doLogin() {
   const user = document.getElementById('loginUser').value.trim();
   const pass = document.getElementById('loginPass').value;
   const err  = document.getElementById('loginError');
-  if (user === CREDENTIALS.username && pass === CREDENTIALS.password) {
-    localStorage.setItem(SESSION_KEY, 'true');
+  const match = USERS.find(u => u.username === user && u.password === pass);
+  if (match) {
+    localStorage.setItem(SESSION_KEY, JSON.stringify({ username: match.username, name: match.name, role: match.role }));
     err.classList.add('hidden');
     showApp();
   } else {
@@ -86,21 +102,52 @@ function doLogout() {
   document.getElementById('loginScreen').classList.remove('hidden');
   document.getElementById('loginUser').value = '';
   document.getElementById('loginPass').value = '';
+  document.body.classList.remove('role-admin', 'role-normal');
 }
 function showApp() {
   document.getElementById('loginScreen').classList.add('hidden');
   document.getElementById('appShell').classList.remove('hidden');
+  applyRoleUI();
+  injectCustomInsuranceOptions();
+  injectCustomCauseOptions();
   updateClock();
-  showPage('dashboard');
+  showPage(isAdmin() ? 'dashboard' : 'newPatient');
+}
+
+// ─── Role-based access control ────────────
+function applyRoleUI() {
+  const user = currentUser();
+  if (!user) return;
+  document.body.classList.toggle('role-admin', user.role === 'admin');
+  document.body.classList.toggle('role-normal', user.role === 'normal');
+
+  // Sidebar identity
+  const nameEl = document.querySelector('.sidebar-user .user-name');
+  const roleEl = document.querySelector('.sidebar-user .user-role');
+  const avatarEl = document.querySelector('.sidebar-user .user-avatar');
+  if (nameEl) nameEl.textContent = user.name;
+  if (roleEl) roleEl.textContent = user.role === 'admin' ? 'Administrator' : 'Ward Nurse';
+  if (avatarEl) avatarEl.textContent = (user.name || '?').trim().charAt(0).toUpperCase();
+
+  // Hide nav items this role can't see (data-admin-only="1")
+  document.querySelectorAll('.nav-item[data-admin-only]').forEach(el => {
+    el.classList.toggle('hidden', user.role !== 'admin');
+  });
 }
 
 document.getElementById('loginPass')?.addEventListener('keydown', e => { if (e.key==='Enter') doLogin(); });
 document.getElementById('loginUser')?.addEventListener('keydown', e => { if (e.key==='Enter') document.getElementById('loginPass').focus(); });
 
 // ─── Navigation ───────────────────────────
-const PAGE_TITLES = { dashboard:'Dashboard', newPatient:'New Patient', records:'Patient Records', shiftReport:'Shift Report' };
+const PAGE_TITLES = { dashboard:'Dashboard', newPatient:'New Patient', records:'Patient Records', shiftReport:'Shift Report', management:'Management' };
+const ADMIN_ONLY_PAGES = ['dashboard', 'management'];
 
 function showPage(name) {
+  // Guard: normal users can't open admin-only pages, even via console/hash tricks
+  if (ADMIN_ONLY_PAGES.includes(name) && !isAdmin()) {
+    name = 'newPatient';
+  }
+
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById(`page-${name}`)?.classList.add('active');
@@ -112,6 +159,11 @@ function showPage(name) {
   if (name === 'newPatient')  initNewPatientForm();
   if (name === 'records')     renderRecords();
   if (name === 'shiftReport') initShiftReport();
+  if (name === 'management') {
+    renderInsuranceManagement();
+    buildEmojiPickerGrid();
+    renderCauseManagement();
+  }
 
   if (window.innerWidth <= 700) document.getElementById('sidebar').classList.remove('open');
 }
@@ -1147,6 +1199,22 @@ function refreshAutoFields() {
   document.getElementById('autoShift').value = getShift();
 }
 
+// ─── Backdating (Admin only) ──────────────
+function toggleBackdate(enable) {
+  const autoFields = ['autoDate','autoTime','autoShift'];
+  const manualFields = ['backdateDate','backdateTime','backdateShift'];
+  autoFields.forEach(id => document.getElementById(id)?.classList.toggle('hidden', enable));
+  manualFields.forEach(id => document.getElementById(id)?.classList.toggle('hidden', !enable));
+  if (enable) {
+    const bd = document.getElementById('backdateDate');
+    const bt = document.getElementById('backdateTime');
+    const bs = document.getElementById('backdateShift');
+    if (bd && !bd.value) bd.value = isoDate();
+    if (bt && !bt.value) bt.value = shortTimeStr();
+    if (bs && !bs.value) bs.value = getShift();
+  }
+}
+
 function savePatient(event) {
   event.preventDefault();
   const editId   = document.getElementById('editId').value;
@@ -1180,6 +1248,21 @@ function savePatient(event) {
   document.querySelectorAll('.nxt-field-error').forEach(el => el.classList.remove('nxt-field-error'));
   hideFormError();
 
+  // Admin-only manual date/time/shift override ("backdating")
+  const backdating = isAdmin() && document.getElementById('backdateEnable')?.checked;
+  let dateISOVal, dateVal, timeVal, shiftVal;
+  if (backdating) {
+    dateISOVal = document.getElementById('backdateDate').value || isoDate();
+    dateVal    = formatDob(dateISOVal);
+    timeVal    = document.getElementById('backdateTime').value || shortTimeStr();
+    shiftVal   = document.getElementById('backdateShift').value || getShift();
+  } else {
+    dateISOVal = editId ? (patients.find(p=>p.id===editId)?.dateISO || isoDate()) : isoDate();
+    dateVal    = editId ? document.getElementById('autoDate').value : todayStr();
+    timeVal    = editId ? document.getElementById('autoTime').value : shortTimeStr();
+    shiftVal   = editId ? document.getElementById('autoShift').value : getShift();
+  }
+
   const record = {
     id:              editId || String(Date.now()),
     patientId:       document.getElementById('patientId').value.trim(),
@@ -1195,10 +1278,10 @@ function savePatient(event) {
     daysSinceInjury: document.getElementById('daysSinceInjury').value.trim(),
     gpConsultation:  document.getElementById('gpConsultation').value,
     notes:           document.getElementById('notes').value.trim(),
-    date:            editId ? document.getElementById('autoDate').value : todayStr(),
-    dateISO:         editId ? (patients.find(p=>p.id===editId)?.dateISO || isoDate()) : isoDate(),
-    timeSeen:        editId ? document.getElementById('autoTime').value : shortTimeStr(),
-    shift:           editId ? document.getElementById('autoShift').value : getShift(),
+    date:            dateVal,
+    dateISO:         dateISOVal,
+    timeSeen:        timeVal,
+    shift:           shiftVal,
   };
 
   if (editId) {
@@ -1234,6 +1317,10 @@ function clearForm() {
   // Reset searchable wrappers
   document.querySelectorAll('.nxt-searchable').forEach(w => w.classList.remove('is-selected'));
   refreshAutoFields();
+  const be = document.getElementById('backdateEnable');
+  if (be) { be.checked = false; toggleBackdate(false); }
+  document.getElementById('backdateDate') && (document.getElementById('backdateDate').value = '');
+  document.getElementById('backdateTime') && (document.getElementById('backdateTime').value = '');
   resetSaveBtn();
 }
 
@@ -1492,11 +1579,11 @@ function renderRecords() {
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
             View
           </button>
-          <button class="btn-icon btn-edit" onclick="editPatient('${p.id}')">
+          <button class="btn-icon btn-edit admin-only" onclick="editPatient('${p.id}')">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
             Edit
           </button>
-          <button class="btn-icon btn-del" onclick="deletePatient('${p.id}')">
+          <button class="btn-icon btn-del admin-only" onclick="deletePatient('${p.id}')">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
             Delete
           </button>
@@ -1532,6 +1619,7 @@ function viewPatient(id) {
 }
 
 function editPatient(id) {
+  if (!isAdmin()) return;
   const p = getPatients().find(pt => pt.id === id);
   if (!p) return;
   showPage('newPatient');
@@ -1557,12 +1645,22 @@ function editPatient(id) {
   document.getElementById('autoDate').value        = p.date;
   document.getElementById('autoTime').value        = p.timeSeen;
   document.getElementById('autoShift').value       = p.shift;
+  // Prime (hidden) backdate fields in case admin enables manual editing
+  const bd = document.getElementById('backdateDate');
+  const bt = document.getElementById('backdateTime');
+  const bs = document.getElementById('backdateShift');
+  if (bd) bd.value = p.dateISO || '';
+  if (bt) bt.value = p.timeSeen || '';
+  if (bs) bs.value = p.shift || 'Day';
+  const be = document.getElementById('backdateEnable');
+  if (be) { be.checked = false; toggleBackdate(false); }
   document.getElementById('saveBtn').innerHTML = `
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
     Update Patient`;
 }
 
 function deletePatient(id) {
+  if (!isAdmin()) return;
   const p = getPatients().find(pt => pt.id === id);
   if (!p) return;
   if (!confirm(`Delete patient "${p.fullName}" (${p.patientId})?\n\nThis action cannot be undone.`)) return;
@@ -1751,3 +1849,193 @@ function calcAgeFromDob() {
   }
   updateClock();
 })();
+
+// ─── Insurance Management (Admin only) ────
+function getCustomInsurance() {
+  try { return JSON.parse(localStorage.getItem(INSURANCE_KEY)) || []; }
+  catch { return []; }
+}
+function saveCustomInsurance(arr) {
+  localStorage.setItem(INSURANCE_KEY, JSON.stringify(arr));
+}
+
+// Inject any admin-added insurance types into every dropdown/select that lists them
+function injectCustomInsuranceOptions() {
+  const custom = getCustomInsurance();
+  if (!custom.length) return;
+
+  // 1) New Patient form — searchable dropdown
+  const drop = document.getElementById('insuranceTypeSearch-drop');
+  if (drop) {
+    custom.forEach(name => {
+      if (drop.querySelector(`[data-value="${CSS.escape(name)}"]`)) return;
+      const div = document.createElement('div');
+      div.className = 'nxt-drop-item';
+      div.dataset.value = name;
+      div.textContent = name;
+      div.onclick = () => pickDropdown('insuranceTypeSearch','insuranceType', name, name);
+      drop.appendChild(div);
+    });
+  }
+
+  // 2) Records filter + Dashboard calendar filter — plain <select> elements
+  ['filterInsurance', 'calFilterInsurance'].forEach(selId => {
+    const sel = document.getElementById(selId);
+    if (!sel) return;
+    custom.forEach(name => {
+      if ([...sel.options].some(o => o.value === name)) return;
+      const opt = document.createElement('option');
+      opt.value = name; opt.textContent = name;
+      sel.appendChild(opt);
+    });
+  });
+}
+
+function renderInsuranceManagement() {
+  if (!isAdmin()) return;
+  const list = getCustomInsurance();
+  const listEl = document.getElementById('insuranceCustomList');
+  if (!listEl) return;
+  listEl.innerHTML = list.length
+    ? list.map((name, i) => `
+      <div class="ins-row">
+        <span>${escHtml(name)}</span>
+        <button class="btn-icon btn-del" onclick="removeInsuranceType(${i})">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+          Remove
+        </button>
+      </div>`).join('')
+    : '<p class="page-desc">No custom insurance types added yet.</p>';
+}
+
+function addInsuranceType() {
+  if (!isAdmin()) return;
+  const input = document.getElementById('newInsuranceName');
+  const name = (input?.value || '').trim();
+  if (!name) return;
+  const list = getCustomInsurance();
+  if (list.some(n => n.toLowerCase() === name.toLowerCase())) {
+    input.value = '';
+    return;
+  }
+  list.push(name);
+  saveCustomInsurance(list);
+  input.value = '';
+  renderInsuranceManagement();
+  injectCustomInsuranceOptions();
+}
+
+function removeInsuranceType(index) {
+  if (!isAdmin()) return;
+  const list = getCustomInsurance();
+  list.splice(index, 1);
+  saveCustomInsurance(list);
+  renderInsuranceManagement();
+  // Note: options already injected into open dropdowns remain until next reload/page nav — acceptable for a rarely-changed settings list
+}
+
+// ─── Wound Cause Management (Admin only) ──
+const CAUSE_ICON_CHOICES = [
+  '🔥','⚡','🏥','🤕','🦴','🩹','🔆','⚠️','🔬','🩻',
+  '📋','📌','💉','🩸','🧬','🦠','💊','🩺','🚑','❤️‍🩹',
+  '🧊','🥶','🌡️','👣','🦵','🦶','🖐️','✋','🦾','😷',
+];
+let selectedCauseEmoji = CAUSE_ICON_CHOICES[0];
+
+function getCustomCauses() {
+  try { return JSON.parse(localStorage.getItem(CAUSE_KEY)) || []; }
+  catch { return []; }
+}
+function saveCustomCauses(arr) {
+  localStorage.setItem(CAUSE_KEY, JSON.stringify(arr));
+}
+
+function buildEmojiPickerGrid() {
+  const grid = document.getElementById('emojiPickerGrid');
+  if (!grid) return;
+  grid.innerHTML = CAUSE_ICON_CHOICES.map((emoji, i) => `
+    <button type="button" class="emoji-btn${i===0 ? ' selected' : ''}" data-emoji="${emoji}" onclick="pickCauseEmoji('${emoji}', this)">${emoji}</button>
+  `).join('');
+  selectedCauseEmoji = CAUSE_ICON_CHOICES[0];
+  const preview = document.getElementById('emojiPreview');
+  if (preview) preview.textContent = selectedCauseEmoji;
+}
+
+function pickCauseEmoji(emoji, btn) {
+  selectedCauseEmoji = emoji;
+  document.querySelectorAll('.emoji-btn').forEach(b => b.classList.remove('selected'));
+  btn?.classList.add('selected');
+  const preview = document.getElementById('emojiPreview');
+  if (preview) preview.textContent = emoji;
+}
+
+function renderCauseManagement() {
+  if (!isAdmin()) return;
+  const list = getCustomCauses();
+  const listEl = document.getElementById('causeCustomList');
+  if (!listEl) return;
+  listEl.innerHTML = list.length
+    ? list.map((c, i) => `
+      <div class="ins-row">
+        <span>${c.emoji} ${escHtml(c.name)}</span>
+        <button class="btn-icon btn-del" onclick="removeWoundCause(${i})">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+          Remove
+        </button>
+      </div>`).join('')
+    : '<p class="page-desc">No custom wound causes added yet.</p>';
+}
+
+function addWoundCause() {
+  if (!isAdmin()) return;
+  const input = document.getElementById('newCauseName');
+  const name = (input?.value || '').trim();
+  if (!name) return;
+  const list = getCustomCauses();
+  if (list.some(c => c.name.toLowerCase() === name.toLowerCase())) {
+    input.value = '';
+    return;
+  }
+  list.push({ emoji: selectedCauseEmoji || '🏷️', name });
+  saveCustomCauses(list);
+  input.value = '';
+  renderCauseManagement();
+  injectCustomCauseOptions();
+}
+
+function removeWoundCause(index) {
+  if (!isAdmin()) return;
+  const list = getCustomCauses();
+  list.splice(index, 1);
+  saveCustomCauses(list);
+  renderCauseManagement();
+}
+
+// Inject any admin-added wound causes into the New Patient dropdown + Dashboard cause filter
+function injectCustomCauseOptions() {
+  const custom = getCustomCauses();
+  if (!custom.length) return;
+
+  const drop = document.getElementById('woundCauseSearch-drop');
+  if (drop) {
+    custom.forEach(c => {
+      if (drop.querySelector(`[data-value="${CSS.escape(c.name)}"]`)) return;
+      const div = document.createElement('div');
+      div.className = 'nxt-drop-item';
+      div.dataset.value = c.name;
+      div.textContent = `${c.emoji} ${c.name}`;
+      div.onclick = () => pickDropdown('woundCauseSearch','woundCause', c.name, c.name);
+      drop.appendChild(div);
+    });
+  }
+
+  const sel = document.getElementById('calFilterCause');
+  if (sel) {
+    custom.forEach(c => {
+      if ([...sel.options].some(o => o.value === c.name)) return;
+      const opt = document.createElement('option');
+      opt.value = c.name; opt.textContent = c.name;
+      sel.appendChild(opt);
+    });
+  }
+}
