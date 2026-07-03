@@ -46,6 +46,87 @@ body {
 /* ═══════ UTILITIES ═══════ */
 .hidden { display: none !important; }
 
+/* ── Role-based visibility ── */
+body.role-normal .admin-only { display: none !important; }
+
+/* ── Backdating toggle (New Patient form) ── */
+.backdate-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: #475569;
+  margin: 4px 0 14px;
+  cursor: pointer;
+  user-select: none;
+}
+.backdate-toggle input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: #e8490a;
+  cursor: pointer;
+}
+
+/* ── Insurance Management page ── */
+.ins-add-row {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+.ins-add-row .nxt-input {
+  flex: 1;
+}
+.ins-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  margin-bottom: 8px;
+  font-size: 0.9rem;
+}
+
+/* ── Emoji picker (Management page) ── */
+.emoji-picker-label {
+  font-size: 0.85rem;
+  color: #475569;
+  margin-bottom: 10px;
+  font-weight: 500;
+}
+.emoji-preview {
+  display: inline-block;
+  font-size: 1.2rem;
+  margin-left: 4px;
+}
+.emoji-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 8px;
+  margin-bottom: 18px;
+}
+.emoji-btn {
+  font-size: 1.25rem;
+  line-height: 1;
+  padding: 8px 0;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
+}
+.emoji-btn:hover {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+}
+.emoji-btn.selected {
+  border-color: #e8490a;
+  background: #fff1ec;
+}
+@media (max-width: 700px) {
+  .emoji-picker-grid { grid-template-columns: repeat(6, 1fr); }
+}
+
 /* ═══════════════════════════════════════════
    LOGIN SCREEN
 ═══════════════════════════════════════════ */
