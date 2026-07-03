@@ -3,13 +3,13 @@
 // ─── Constants ────────────────────────────
 const STORAGE_KEY = 'msw_patients';
 const SESSION_KEY = 'msw_session';
+const USERS_KEY   = 'msw_users';
 const INSURANCE_KEY = 'msw_custom_insurance';
 const CAUSE_KEY = 'msw_custom_causes';
 
-// Two-tier auth: 'admin' = full access, 'normal' = registration/records/shift report only
+// Fixed admin account. Normal users are created through the signup flow.
 const USERS = [
-  { username: 'admin', password: 'admin123', role: 'admin',  name: 'Admin User'  },
-  { username: 'nurse', password: 'nurse123', role: 'normal', name: 'Ward Nurse'  },
+  { username: 'admin', password: 'Dmc@123', role: 'admin', name: 'Admin User' },
 ];
 
 const MONTHS = ['','January','February','March','April','May','June',
@@ -22,6 +22,34 @@ function getPatients() {
 }
 function savePatients(arr) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(arr));
+}
+
+function getStoredUsers() {
+  try { return JSON.parse(localStorage.getItem(USERS_KEY)) || []; }
+  catch { return []; }
+}
+function saveStoredUsers(arr) {
+  localStorage.setItem(USERS_KEY, JSON.stringify(arr));
+}
+function getAllUsers() {
+  return [...USERS, ...getStoredUsers()];
+}
+function isUsernameTaken(username) {
+  return getAllUsers().some(u => u.username.toLowerCase() === (username || '').toLowerCase());
+}
+
+function getVisiblePatients() {
+  const current = currentUser();
+  if (!current) return [];
+  const all = getPatients();
+  return current.role === 'admin'
+    ? all
+    : all.filter(p => p.owner === current.username);
+}
+function findPatientRecord(id) {
+  const record = getPatients().find(p => p.id === id);
+  if (!record) return null;
+  return isAdmin() || record.owner === currentUser()?.username ? record : null;
 }
 
 // ─── Date helpers ─────────────────────────
@@ -86,7 +114,7 @@ function doLogin() {
   const user = document.getElementById('loginUser').value.trim();
   const pass = document.getElementById('loginPass').value;
   const err  = document.getElementById('loginError');
-  const match = USERS.find(u => u.username === user && u.password === pass);
+  const match = getAllUsers().find(u => u.username.toLowerCase() === user.toLowerCase() && u.password === pass);
   if (match) {
     localStorage.setItem(SESSION_KEY, JSON.stringify({ username: match.username, name: match.name, role: match.role }));
     err.classList.add('hidden');
@@ -104,6 +132,72 @@ function doLogout() {
   document.getElementById('loginPass').value = '';
   document.body.classList.remove('role-admin', 'role-normal');
 }
+function showSignup() {
+  document.getElementById('loginCard').classList.add('hidden');
+  document.getElementById('signupCard').classList.remove('hidden');
+  document.getElementById('loginError').classList.add('hidden');
+  document.getElementById('signupError').classList.add('hidden');
+  document.getElementById('signupSuccess').classList.add('hidden');
+  clearSignupFields();
+}
+function showLogin() {
+  document.getElementById('signupCard').classList.add('hidden');
+  document.getElementById('loginCard').classList.remove('hidden');
+  document.getElementById('signupError').classList.add('hidden');
+  document.getElementById('signupSuccess').classList.add('hidden');
+  document.getElementById('loginError').classList.add('hidden');
+}
+function clearSignupFields() {
+  ['signupFullName', 'signupUsername', 'signupPassword', 'signupConfirmPassword'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+}
+function doSignup() {
+  const name = document.getElementById('signupFullName').value.trim();
+  const username = document.getElementById('signupUsername').value.trim();
+  const password = document.getElementById('signupPassword').value;
+  const confirm = document.getElementById('signupConfirmPassword').value;
+  const err = document.getElementById('signupError');
+  const success = document.getElementById('signupSuccess');
+  err.classList.add('hidden');
+  success.classList.add('hidden');
+
+  if (!name || !username || !password || !confirm) {
+    err.textContent = 'Please complete all fields.';
+    err.classList.remove('hidden');
+    return;
+  }
+  if (password !== confirm) {
+    err.textContent = 'Passwords do not match.';
+    err.classList.remove('hidden');
+    return;
+  }
+  if (username.toLowerCase() === 'admin') {
+    err.textContent = 'This username is reserved.';
+    err.classList.remove('hidden');
+    return;
+  }
+  if (isUsernameTaken(username)) {
+    err.textContent = 'Username is already in use.';
+    err.classList.remove('hidden');
+    return;
+  }
+
+  const users = getStoredUsers();
+  users.push({ username, password, role: 'normal', name });
+  saveStoredUsers(users);
+
+  success.textContent = 'Account created successfully. Please sign in.';
+  success.classList.remove('hidden');
+  clearSignupFields();
+  setTimeout(() => {
+    showLogin();
+    document.getElementById('loginUser').value = username;
+    document.getElementById('loginPass').focus();
+  }, 1000);
+}
+
 function showApp() {
   document.getElementById('loginScreen').classList.add('hidden');
   document.getElementById('appShell').classList.remove('hidden');
@@ -112,6 +206,12 @@ function showApp() {
   injectCustomCauseOptions();
   updateClock();
   showPage(isAdmin() ? 'dashboard' : 'newPatient');
+}
+
+function sanitizeUsers() {
+  const stored = getStoredUsers();
+  const filtered = stored.filter(u => u.username.toLowerCase() !== 'nurse');
+  if (filtered.length !== stored.length) saveStoredUsers(filtered);
 }
 
 // ─── Role-based access control ────────────
@@ -126,7 +226,7 @@ function applyRoleUI() {
   const roleEl = document.querySelector('.sidebar-user .user-role');
   const avatarEl = document.querySelector('.sidebar-user .user-avatar');
   if (nameEl) nameEl.textContent = user.name;
-  if (roleEl) roleEl.textContent = user.role === 'admin' ? 'Administrator' : 'Ward Nurse';
+  if (roleEl) roleEl.textContent = user.role === 'admin' ? 'Administrator' : 'Staff';
   if (avatarEl) avatarEl.textContent = (user.name || '?').trim().charAt(0).toUpperCase();
 
   // Hide nav items this role can't see (data-admin-only="1")
@@ -188,7 +288,7 @@ const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct'
 const MONTH_FULL  = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
 function renderDashboard() {
-  const patients = getPatients();
+  const patients = getVisiblePatients();
   const today    = isoDate();
   const todayPts = patients.filter(p => p.dateISO === today);
 
@@ -257,7 +357,7 @@ function renderCalExpandedBody(pts) {
 }
 
 function openCalMonth(key) {
-  const patients = getPatients();
+  const patients = getVisiblePatients();
   const monthPts = patients.filter(p => p.dateISO && p.dateISO.startsWith(key));
   const [yr, mm] = key.split('-');
   const title = `${MONTH_FULL[parseInt(mm) - 1]} ${yr}`;
@@ -319,7 +419,7 @@ function toggleCalChip(btn) {
 
 function applyCalFilters() {
   if (!calCurrentKey) return;
-  const patients = getPatients();
+  const patients = getVisiblePatients();
   let pts = patients.filter(p => p.dateISO && p.dateISO.startsWith(calCurrentKey));
   const total = pts.length;
 
@@ -377,7 +477,7 @@ function clearCalDayFilter() {
 // ─── Shared: gather current filtered patient data + meta ──
 function getCalReportData() {
   if (!calCurrentKey) return null;
-  const patients = getPatients();
+  const patients = getVisiblePatients();
   let pts = patients.filter(p => p.dateISO && p.dateISO.startsWith(calCurrentKey));
   const total = pts.length;
 
@@ -1263,6 +1363,7 @@ function savePatient(event) {
     shiftVal   = editId ? document.getElementById('autoShift').value : getShift();
   }
 
+  const existing = patients.find(p => p.id === editId);
   const record = {
     id:              editId || String(Date.now()),
     patientId:       document.getElementById('patientId').value.trim(),
@@ -1282,6 +1383,7 @@ function savePatient(event) {
     dateISO:         dateISOVal,
     timeSeen:        timeVal,
     shift:           shiftVal,
+    owner:           existing?.owner || currentUser()?.username || 'unknown',
   };
 
   if (editId) {
@@ -1465,7 +1567,7 @@ function toggleFilters() {
 
 // ─── Main records render ──────────────────
 function renderRecords() {
-  const patients = getPatients();
+  const patients = getVisiblePatients();
   const query = getVal('searchInput').toLowerCase().trim();
 
   // Pull all filter values
@@ -1594,7 +1696,7 @@ function renderRecords() {
 
 // ─── View / Edit / Delete ─────────────────
 function viewPatient(id) {
-  const p = getPatients().find(pt => pt.id === id);
+  const p = findPatientRecord(id);
   if (!p) return;
   document.getElementById('viewModalBody').innerHTML = `
     <div class="detail-grid">
@@ -1688,7 +1790,7 @@ function renderReport() {
   document.getElementById('reportDateDisplay').textContent = todayStr();
   document.getElementById('reportPrintedAt').textContent   = shortTimeStr();
 
-  const patients = getPatients().filter(p => p.dateISO === today);
+  const patients = getVisiblePatients().filter(p => p.dateISO === today);
   const tbody    = document.getElementById('reportBody');
   document.getElementById('reportSummary').textContent = `Total patients today: ${patients.length}`;
 
@@ -1841,6 +1943,7 @@ function calcAgeFromDob() {
 
 // ─── Boot ─────────────────────────────────
 (function init() {
+  sanitizeUsers();
   if (isLoggedIn()) {
     showApp();
   } else {

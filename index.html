@@ -24,7 +24,7 @@
         <p class="login-subtitle">Patient Management System</p>
       </div>
     </div>
-    <div class="login-card">
+    <div id="loginCard" class="login-card">
       <h2>Sign in to continue</h2>
       <p class="login-hint">Use your staff credentials to access the system.</p>
       <div id="loginError" class="login-error hidden">Invalid username or password.</div>
@@ -37,6 +37,38 @@
         <input type="password" id="loginPass" placeholder="Enter password" autocomplete="current-password" />
       </div>
       <button class="btn btn-primary btn-full" onclick="doLogin()">Sign In</button>
+      <div class="login-footer-action">
+        <span>Need an account?</span>
+        <button type="button" class="link-action" onclick="showSignup()">Create one</button>
+      </div>
+    </div>
+
+    <div id="signupCard" class="login-card hidden">
+      <h2>Create an account</h2>
+      <p class="login-hint">Register as a normal user to manage patients and reports.</p>
+      <div id="signupError" class="login-error hidden"></div>
+      <div id="signupSuccess" class="login-success hidden"></div>
+      <div class="form-group">
+        <label for="signupFullName">Full Name</label>
+        <input type="text" id="signupFullName" placeholder="Enter your full name" autocomplete="name" />
+      </div>
+      <div class="form-group">
+        <label for="signupUsername">Choose Username</label>
+        <input type="text" id="signupUsername" placeholder="Enter username" autocomplete="username" />
+      </div>
+      <div class="form-group">
+        <label for="signupPassword">Password</label>
+        <input type="password" id="signupPassword" placeholder="Enter password" autocomplete="new-password" />
+      </div>
+      <div class="form-group">
+        <label for="signupConfirmPassword">Confirm Password</label>
+        <input type="password" id="signupConfirmPassword" placeholder="Confirm password" autocomplete="new-password" />
+      </div>
+      <button class="btn btn-primary btn-full" onclick="doSignup()">Create Account</button>
+      <div class="login-footer-action">
+        <span>Already have one?</span>
+        <button type="button" class="link-action" onclick="showLogin()">Sign in</button>
+      </div>
     </div>
     <p class="login-footer">DMC Dream Medical Center Hospital &mdash; Internal Use Only</p>
   </div>
