@@ -318,6 +318,20 @@ function ensureSeedAdminUser() {
   saveStoredUsers([{ username: DEFAULT_ADMIN_USERNAME, passwordHash: DEFAULT_ADMIN_PASSWORD_HASH, role: 'admin', name: 'Admin User', active: true }, ...existing]);
 }
 
+function clearLegacyLocalStorage() {
+  if (!SUPABASE_ENABLED || typeof window.localStorage === 'undefined') return;
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(USERS_KEY);
+    localStorage.removeItem(SESSION_KEY);
+    localStorage.removeItem(INSURANCE_KEY);
+    localStorage.removeItem(CAUSE_KEY);
+    localStorage.removeItem(DRAFT_KEY);
+  } catch (e) {
+    console.warn('Unable to clear legacy localStorage', e);
+  }
+}
+
 //  Storage 
 function getPatients() {
   if (SUPABASE_ENABLED) return patientsCache;
@@ -2130,6 +2144,7 @@ function calcAgeFromDob() {
 //  Boot 
 (async function init() {
   if (SUPABASE_ENABLED) {
+    clearLegacyLocalStorage();
     await initSupabaseClient();
     await loadSupabaseSession();
     await loadSupabaseCaches();
