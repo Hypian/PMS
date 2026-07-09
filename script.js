@@ -394,6 +394,14 @@ function showLogin() {
   document.getElementById('signupSuccess').classList.add('hidden');
   document.getElementById('loginError').classList.add('hidden');
 }
+function showSignup() {
+  document.getElementById('loginCard').classList.add('hidden');
+  document.getElementById('signupCard').classList.remove('hidden');
+  document.getElementById('loginError').classList.add('hidden');
+  document.getElementById('signupError').classList.add('hidden');
+  document.getElementById('signupSuccess').classList.add('hidden');
+  clearSignupFields();
+}
 function clearSignupFields() {
   ['signupFullName', 'signupUsername', 'signupPassword', 'signupConfirmPassword'].forEach(id => {
     const el = document.getElementById(id);

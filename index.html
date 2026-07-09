@@ -955,7 +955,6 @@
     </div>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/supabase.min.js"></script>
   <script>
     // Supabase client for remote persistence (replace these values with your Supabase project settings)
     const SUPABASE_URL = 'https://uxsrtzgxtvqmauhqqqzj.supabase.co';
@@ -965,16 +964,40 @@
     window.SUPABASE_URL = SUPABASE_URL;
     window.SUPABASE_ANON_KEY = SUPABASE_ANON_KEY;
 
-    if (typeof window.supabase === 'undefined') {
-      console.warn('Supabase library did not load from jsDelivr; trying fallback.');
-      const fallback = document.createElement('script');
-      fallback.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js';
-      fallback.onload = () => console.info('Supabase fallback loaded successfully.');
-      fallback.onerror = () => console.error('Supabase fallback failed to load.');
-      document.head.appendChild(fallback);
+    function loadScript(src, onload, onerror) {
+      const script = document.createElement('script');
+      script.src = src;
+      script.onload = onload;
+      script.onerror = onerror;
+      document.head.appendChild(script);
     }
+
+    function loadAppScript() {
+      loadScript('script.js', () => {
+        console.info('App script loaded.');
+      }, () => {
+        console.error('Unable to load script.js');
+      });
+    }
+
+    function loadSupabaseLibrary() {
+      loadScript('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/supabase.min.js', () => {
+        console.info('Supabase library loaded.');
+        loadAppScript();
+      }, () => {
+        console.warn('Primary Supabase CDN failed, trying fallback.');
+        loadScript('https://cdn.jsdelivr.net/npm/@supabase/supabase-js', () => {
+          console.info('Supabase fallback loaded.');
+          loadAppScript();
+        }, () => {
+          console.error('Supabase failed to load from both CDN and fallback.');
+          loadAppScript();
+        });
+      });
+    }
+
+    loadSupabaseLibrary();
   </script>
-  <script src="script.js"></script>
 
   <!-- User Edit Modal -->
   <div class="val-overlay hidden" id="editUserOverlay" onclick="closeEditUserModal()">
