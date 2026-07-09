@@ -964,6 +964,15 @@
     // Expose config globally so script.js can initialize the client.
     window.SUPABASE_URL = SUPABASE_URL;
     window.SUPABASE_ANON_KEY = SUPABASE_ANON_KEY;
+
+    if (typeof window.supabase === 'undefined') {
+      console.warn('Supabase library did not load from jsDelivr; trying fallback.');
+      const fallback = document.createElement('script');
+      fallback.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js';
+      fallback.onload = () => console.info('Supabase fallback loaded successfully.');
+      fallback.onerror = () => console.error('Supabase fallback failed to load.');
+      document.head.appendChild(fallback);
+    }
   </script>
   <script src="script.js"></script>
 

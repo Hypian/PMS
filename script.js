@@ -31,7 +31,9 @@ function hashPassword(value) {
 }
 
 function usernameToAuthEmail(username) {
-  return `${String(username || '').toLowerCase()}@msw.local`;
+  const raw = String(username || '').trim().toLowerCase();
+  if (!raw) return '';
+  return raw.includes('@') ? raw : `${raw}@msw.local`;
 }
 
 async function safeSupabaseCall(action) {
