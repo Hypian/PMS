@@ -964,6 +964,11 @@
     window.SUPABASE_URL = SUPABASE_URL;
     window.SUPABASE_ANON_KEY = SUPABASE_ANON_KEY;
 
+    // Prevent click handlers from throwing if app script is still loading.
+    window.showSignup = window.showLogin = window.doLogin = window.doSignup = () => {
+      console.warn('App still loading – please wait.');
+    };
+
     function loadScript(src, onload, onerror) {
       const script = document.createElement('script');
       script.src = src;
