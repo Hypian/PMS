@@ -330,6 +330,32 @@
         <form id="patientForm" onsubmit="savePatient(event)" autocomplete="off">
           <input type="hidden" id="editId" value="" />
 
+          <!-- ── FORM STEPPER ── -->
+          <div class="form-stepper" id="formStepper">
+            <div class="step active" data-target="section-patient-info" onclick="scrollToSection('section-patient-info')">
+              <span class="step-dot">1</span>
+              <span>Patient Info</span>
+            </div>
+            <div class="step" data-target="section-clinical-details" onclick="scrollToSection('section-clinical-details')">
+              <span class="step-dot">2</span>
+              <span>Wound &amp; Clinical Details</span>
+            </div>
+            <div class="step" data-target="section-admin-info" onclick="scrollToSection('section-admin-info')">
+              <span class="step-dot">3</span>
+              <span>Admin / Shift Info</span>
+            </div>
+            <div class="mobile-progress-bar"></div>
+          </div>
+
+          <!-- ── DRAFT RESTORED BANNER ── -->
+          <div id="draftBanner" class="nxt-draft-banner hidden">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="10"/></svg>
+            <span>We restored your unsaved entries from before.</span>
+            <button type="button" class="nxt-draft-discard" onclick="discardDraft()">Discard &amp; start fresh</button>
+          </div>
+
+          <div class="nxt-step-group" id="section-patient-info">
+
           <!-- ── PERSONAL INFORMATION ── -->
           <div class="nxt-section">
             <div class="nxt-section-head">
@@ -457,6 +483,10 @@
             </div>
           </div>
 
+          </div><!-- /#section-patient-info -->
+
+          <div class="nxt-step-group" id="section-clinical-details">
+
           <!-- ── CLINICAL INFORMATION ── -->
           <div class="nxt-section">
             <div class="nxt-section-head">
@@ -559,6 +589,10 @@
             </div>
           </div>
 
+          </div><!-- /#section-clinical-details -->
+
+          <div class="nxt-step-group" id="section-admin-info">
+
           <!-- ── ATTENDANCE (auto) ── -->
           <div class="nxt-section nxt-section--auto">
             <div class="nxt-section-head">
@@ -595,6 +629,8 @@
               </div>
             </div>
           </div>
+
+          </div><!-- /#section-admin-info -->
 
           <!-- ── ACTIONS ── -->
           <div class="nxt-actions">
@@ -854,7 +890,7 @@
       <section id="page-management" class="page">
         <div class="page-header">
           <h2>Management</h2>
-          <p class="page-desc">Add custom insurance types and wound causes. They'll appear alongside the defaults in every dropdown and filter.</p>
+          <p class="page-desc">Manage user access, add custom insurance types, and add wound causes for the patient form.</p>
         </div>
 
         <!-- Insurance Types -->
@@ -870,16 +906,30 @@
           <div id="insuranceCustomList"></div>
         </div>
 
+        <!-- User Management -->
+        <div class="section-card">
+          <h3 class="report-section-title">User Management</h3>
+          <p class="page-desc">Deactivate, activate, edit, or delete normal user accounts.</p>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Username</th>
+                  <th>Role</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="userManagementTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+
         <!-- Wound Causes -->
         <div class="section-card">
           <h3 class="report-section-title">Wound Causes</h3>
-          <p class="page-desc">Pick an icon and give the cause a name, just like Burn 🔥 or Fall 🤕.</p>
-
-          <div class="emoji-picker-label">
-            Selected icon: <span class="emoji-preview" id="emojiPreview">🏷️</span>
-          </div>
-          <div class="emoji-picker-grid" id="emojiPickerGrid"></div>
-
+          <p class="page-desc">Add custom wound causes for selection in the patient form.</p>
           <div class="ins-add-row">
             <input class="nxt-input" type="text" id="newCauseName" placeholder="e.g. Chemical Exposure" />
             <button class="btn btn-primary" onclick="addWoundCause()">
@@ -905,7 +955,47 @@
     </div>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/supabase.min.js"></script>
+  <script>
+    // Supabase client for remote persistence (replace these values with your Supabase project settings)
+    const SUPABASE_URL = 'https://uxsrtzgxtvqmauhqqqzj.supabase.co';
+    const SUPABASE_ANON_KEY = 'sb_publishable_JogpLER5nb7x278PBWFFyw_tb2cPdT2';
+
+    // Expose config globally so script.js can initialize the client.
+    window.SUPABASE_URL = SUPABASE_URL;
+    window.SUPABASE_ANON_KEY = SUPABASE_ANON_KEY;
+  </script>
   <script src="script.js"></script>
+
+  <!-- User Edit Modal -->
+  <div class="val-overlay hidden" id="editUserOverlay" onclick="closeEditUserModal()">
+    <div class="val-modal" onclick="event.stopPropagation()">
+      <div class="val-modal-icon" style="background: rgba(37, 99, 235, 0.12); color: #2563EB;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      </div>
+      <h3>Edit User</h3>
+      <input type="hidden" id="editUserUsernameOrig" />
+      <div class="form-group">
+        <label for="editUserName">Full Name</label>
+        <input type="text" id="editUserName" class="nxt-input" />
+      </div>
+      <div class="form-group">
+        <label for="editUserPass">New Password</label>
+        <input type="password" id="editUserPass" class="nxt-input" placeholder="Leave blank to keep current password" />
+      </div>
+      <div class="form-group">
+        <label for="editUserRole">Role</label>
+        <select id="editUserRole" class="nxt-input">
+          <option value="normal">Normal</option>
+          <option value="admin">Admin</option>
+        </select>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-outline" onclick="closeEditUserModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveUserEdit()">Save Changes</button>
+      </div>
+    </div>
+  </div>
 
   <!-- ── Success Modal ── -->
   <div class="val-overlay hidden" id="successOverlay" onclick="closeSuccessModal()">
